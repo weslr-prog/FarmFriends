@@ -1,44 +1,67 @@
 import { getSkyGradient, getPhase } from './daynight.js';
-import { PLOT_COLUMNS, PLOT_GAP, PLOT_SIZE, PLOT_START_Y } from './constants.js';
+import { TASK_NODE_END_X, TASK_NODE_RADIUS, TASK_NODE_START_X, TASK_NODE_Y, WORKER_Y } from './constants.js';
 
-function getPlotLayout(width) {
-  const startX = (width - PLOT_COLUMNS * PLOT_SIZE - (PLOT_COLUMNS - 1) * PLOT_GAP) / 2;
-  return { startX };
-}
+export function getTaskNodes(plots) {
+  if (!plots.length) {
+    return [];
+  }
 
-export function getPlotRects(plots, width) {
-  const { startX } = getPlotLayout(width);
+  if (plots.length === 1) {
+    return [{ plotId: plots[0].id, x: (TASK_NODE_START_X + TASK_NODE_END_X) / 2, y: TASK_NODE_Y }];
+  }
 
+  const span = TASK_NODE_END_X - TASK_NODE_START_X;
   return plots.map((plot, index) => {
-    const col = index % PLOT_COLUMNS;
-    const row = Math.floor(index / PLOT_COLUMNS);
-    const x = startX + col * (PLOT_SIZE + PLOT_GAP);
-    const y = PLOT_START_Y + row * (PLOT_SIZE + PLOT_GAP);
-
-    return { plotId: plot.id, x, y, size: PLOT_SIZE };
+    const ratio = index / (plots.length - 1);
+    return {
+      plotId: plot.id,
+      x: TASK_NODE_START_X + span * ratio,
+      y: TASK_NODE_Y,
+    };
   });
 }
 
-export function getPlotHitFromPoint(x, y, plots, width) {
-  const rects = getPlotRects(plots, width);
+function getTaskForPlot(plot, selectedSeed = 'carrot') {
+  if (plot.stage === 'empty') {
+    return { type: 'plant', cropType: selectedSeed };
+  }
+  if (plot.stage === 'growing' && plot.attentionType) {
+    return { type: 'attention' };
+  }
+  if (plot.stage === 'ready') {
+    return { type: 'harvest' };
+  }
+  return null;
+}
 
-  for (const rect of rects) {
-    const inBounds = x >= rect.x && x <= rect.x + rect.size && y >= rect.y && y <= rect.y + rect.size;
-    if (!inBounds) {
+export function getTaskHitFromPoint(x, y, plots, selectedSeed = 'carrot') {
+  const nodes = getTaskNodes(plots);
+
+  for (const node of nodes) {
+    const dx = x - node.x;
+    const dy = y - node.y;
+    if (dx * dx + dy * dy > TASK_NODE_RADIUS * TASK_NODE_RADIUS) {
       continue;
     }
 
-    const attentionDx = x - (rect.x + rect.size - 12);
-    const attentionDy = y - (rect.y + 12);
-    const onAttentionBubble = attentionDx * attentionDx + attentionDy * attentionDy <= 8 * 8;
+    const plot = plots.find((entry) => entry.id === node.plotId);
+    if (!plot) {
+      return null;
+    }
 
+    const task = getTaskForPlot(plot, selectedSeed);
     return {
-      plotId: rect.plotId,
-      zone: onAttentionBubble ? 'attention' : 'plot',
+      plotId: node.plotId,
+      nodeX: node.x,
+      task,
     };
   }
 
   return null;
+}
+
+export function clampWorldX(pointerX) {
+  return Math.max(TASK_NODE_START_X, Math.min(TASK_NODE_END_X, pointerX));
 }
 
 export function drawFrame(ctx, state, gameMinutes, fireflies, nowPerf = performance.now()) {
@@ -48,7 +71,9 @@ export function drawFrame(ctx, state, gameMinutes, fireflies, nowPerf = performa
   ctx.clearRect(0, 0, width, height);
 
   drawSky(ctx, gameMinutes, width, height);
-  drawPlots(ctx, state.plots, width, nowPerf);
+  drawGround(ctx, width, height);
+  drawTaskNodes(ctx, state.plots, nowPerf);
+  drawWorker(ctx, state.worker, nowPerf);
   drawFireflies(ctx, fireflies, gameMinutes);
   drawUI(ctx, gameMinutes, width, state.plots, nowPerf);
 }
@@ -61,39 +86,90 @@ function drawSky(ctx, gameMinutes, width, height) {
   ctx.restore();
 }
 
-function drawPlots(ctx, plots, width, nowPerf) {
-  const rects = getPlotRects(plots, width);
+function drawGround(ctx, width, height) {
+  ctx.save();
+  ctx.fillStyle = '#284a2f';
+  ctx.fillRect(0, TASK_NODE_Y + 14, width, height - (TASK_NODE_Y + 14));
+  ctx.fillStyle = 'rgba(17, 28, 18, 0.28)';
+  ctx.fillRect(0, TASK_NODE_Y + 14, width, 4);
+  ctx.restore();
+}
+
+function drawTaskNodes(ctx, plots, nowPerf) {
+  const nodes = getTaskNodes(plots);
   const pulse = (Math.sin(nowPerf * 0.01) + 1) / 2;
 
   plots.forEach((plot, index) => {
-    const rect = rects[index];
-    const x = rect.x;
-    const y = rect.y;
+    const node = nodes[index];
+    const x = node.x;
+    const y = node.y;
 
     ctx.save();
-    ctx.fillStyle = '#6e5432';
-    ctx.fillRect(x, y, PLOT_SIZE, PLOT_SIZE);
-
-    if (plot.stage !== 'empty') {
-      ctx.fillStyle = plot.stage === 'ready' ? '#7ee081' : '#76c1ff';
-      ctx.fillRect(x + 14, y + 14, PLOT_SIZE - 28, PLOT_SIZE - 28);
-
-      if (plot.stage === 'ready') {
-        ctx.strokeStyle = `rgba(168, 255, 165, ${0.4 + pulse * 0.6})`;
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(x + 10, y + 10, PLOT_SIZE - 20, PLOT_SIZE - 20);
-      }
+    if (plot.stage === 'ready') {
+      ctx.fillStyle = `rgba(126, 224, 129, ${0.65 + pulse * 0.3})`;
+    } else if (plot.stage === 'growing' && plot.attentionType) {
+      ctx.fillStyle = '#ffd46f';
+    } else if (plot.stage === 'growing' || plot.stage === 'sprouting') {
+      ctx.fillStyle = '#78c7ff';
+    } else {
+      ctx.fillStyle = '#8d6940';
     }
 
-    if (plot.attentionType) {
-      ctx.fillStyle = '#ffef86';
-      ctx.beginPath();
-      ctx.arc(x + PLOT_SIZE - 12, y + 12, 8, 0, Math.PI * 2);
-      ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, TASK_NODE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(16, 20, 16, 0.52)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#101410';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${plot.id + 1}`, x, y + 3);
+
+    if (plot.stage === 'growing' && plot.attentionType) {
+      ctx.fillStyle = '#fff2a3';
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillText('!', x, y - 20);
     }
 
     ctx.restore();
   });
+}
+
+function drawWorker(ctx, worker, nowPerf) {
+  if (!worker) {
+    return;
+  }
+
+  const walking = worker.status === 'walking';
+  const bob = walking ? Math.sin(nowPerf * 0.02) * 2 : 0;
+  const x = worker.x;
+  const y = WORKER_Y + bob;
+
+  ctx.save();
+  ctx.fillStyle = '#f3d4b3';
+  ctx.beginPath();
+  ctx.arc(x, y - 16, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#3658a7';
+  ctx.fillRect(x - 6, y - 10, 12, 17);
+
+  ctx.fillStyle = '#22314f';
+  ctx.fillRect(x - 5, y + 7, 4, 8);
+  ctx.fillRect(x + 1, y + 7, 4, 8);
+
+  if (worker.task) {
+    ctx.fillStyle = '#eaf8ff';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    const icon = worker.task.type === 'plant' ? '🌱' : worker.task.type === 'attention' ? '💧' : '🧺';
+    ctx.fillText(icon, x, y - 24);
+  }
+
+  ctx.restore();
 }
 
 function drawFireflies(ctx, fireflies, gameMinutes) {
@@ -142,5 +218,11 @@ function drawUI(ctx, gameMinutes, width, plots, nowPerf) {
     ctx.font = '11px Inter, sans-serif';
     ctx.fillText(`Ready: ${readyCount}`, width - 102, 56);
   }
+
+  ctx.fillStyle = 'rgba(6, 10, 16, 0.5)';
+  ctx.fillRect(10, 40, 120, 24);
+  ctx.fillStyle = '#ecf1ff';
+  ctx.font = '10px Inter, sans-serif';
+  ctx.fillText('Click nodes to assign tasks', 70, 56);
   ctx.restore();
 }

@@ -9,11 +9,20 @@ export const COUNTER_ANIMATION_MS = 700;
 export const MILESTONE_OVERLAY_MS = 2_200;
 
 export const CANVAS_WIDTH = 360;
-export const CANVAS_HEIGHT = 420;
+export const CANVAS_HEIGHT = 240;
 export const PLOT_COLUMNS = 3;
 export const PLOT_SIZE = 90;
 export const PLOT_GAP = 12;
 export const PLOT_START_Y = 120;
+export const TASK_NODE_RADIUS = 14;
+export const TASK_NODE_START_X = 42;
+export const TASK_NODE_END_X = 318;
+export const TASK_NODE_Y = 178;
+
+export const WORKER_START_X = 42;
+export const WORKER_Y = 162;
+export const WORKER_SPEED_PX_PER_SEC = 86;
+export const WORKER_TASK_DURATION_MS = 900;
 
 export const SPROUT_STAGE_RATIO = 0.4;
 export const GROW_STAGE_RATIO = 0.6;

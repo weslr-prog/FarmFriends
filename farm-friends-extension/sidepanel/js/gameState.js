@@ -1,4 +1,11 @@
-import { GAME_TICK_MS, OFFLINE_CAP_HOURS, PLOT_COUNT, STORAGE_KEY } from './constants.js';
+import {
+  GAME_TICK_MS,
+  OFFLINE_CAP_HOURS,
+  PLOT_COUNT,
+  STORAGE_KEY,
+  WORKER_START_X,
+  WORKER_Y,
+} from './constants.js';
 import { tickFarm } from './farm.js';
 
 function createDefaultPlots() {
@@ -38,6 +45,16 @@ export const DEFAULT_STATE = {
   settings: {
     soundEnabled: true,
   },
+  worker: {
+    x: WORKER_START_X,
+    y: WORKER_Y,
+    targetX: WORKER_START_X,
+    facing: 1,
+    status: 'idle',
+    task: null,
+    taskRemainingMs: 0,
+  },
+  pendingTask: null,
   lastSaved: null,
   version: 1,
 };

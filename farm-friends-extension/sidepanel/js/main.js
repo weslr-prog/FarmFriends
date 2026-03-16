@@ -3,12 +3,14 @@ import {
   FIREFLY_COUNT,
   GAME_TICK_MS,
   STATUS_MESSAGE_MS,
+  WORKER_SPEED_PX_PER_SEC,
+  WORKER_TASK_DURATION_MS,
 } from './constants.js';
 import { getGameMinutes, updateFireflies, createFireflies } from './daynight.js';
 import { doAttentionTask, harvestPlot, plantCrop, tickFarm } from './farm.js';
 import { deliverProduce } from './foodbank.js';
 import { calculateOfflineProgress, loadState, saveState } from './gameState.js';
-import { drawFrame, getPlotHitFromPoint } from './renderer.js';
+import { clampWorldX, drawFrame, getTaskHitFromPoint, getTaskNodes } from './renderer.js';
 import { initIAP } from './iap.js';
 import {
   getSelectedSeed,
@@ -28,6 +30,7 @@ let fireflies = [];
 let previousRenderMs = performance.now();
 let selectedSeed = 'carrot';
 let statusTimeoutId = null;
+let saveChain = Promise.resolve();
 
 function gameTick() {
   const now = Date.now();
@@ -73,6 +76,8 @@ function renderLoop() {
   const nowPerf = performance.now();
   const dtMs = nowPerf - previousRenderMs;
   previousRenderMs = nowPerf;
+
+  updateWorker(dtMs);
 
   const gameMinutes = getGameMinutes(Date.now());
   updateFireflies(fireflies, gameMinutes, dtMs, ctx.canvas.width, ctx.canvas.height);
@@ -120,19 +125,158 @@ async function applyStateUpdate(nextState, statusMessage) {
   }
 }
 
-async function onPlant(plotId = null) {
+function queueStateSave() {
+  const snapshot = state;
+
+  saveChain = saveChain
+    .then(async () => {
+      const saved = await saveState(snapshot);
+      if (state === snapshot) {
+        state = saved;
+      }
+    })
+    .catch((error) => {
+      console.warn('Save queue error:', error);
+    });
+}
+
+function ensureWorkerState() {
+  if (state.worker) {
+    return;
+  }
+
+  state = {
+    ...state,
+    worker: {
+      x: 42,
+      y: 162,
+      targetX: 42,
+      facing: 1,
+      status: 'idle',
+      task: null,
+      taskRemainingMs: 0,
+    },
+    pendingTask: null,
+  };
+}
+
+function enqueueWorkerTask(taskPayload) {
+  ensureWorkerState();
+
+  state = {
+    ...state,
+    pendingTask: taskPayload,
+  };
+}
+
+function executeWorkerTask(taskPayload) {
+  const { plotId, task } = taskPayload;
+
   try {
-    const targetPlotId = plotId ?? getFirstEmptyPlotId();
-    if (targetPlotId === null) {
-      showStatus('No empty plots right now.');
-      return;
+    if (task.type === 'plant') {
+      state = plantCrop(state, plotId, task.cropType ?? selectedSeed);
+      showStatus(`Worker planted ${task.cropType ?? selectedSeed}.`);
+    } else if (task.type === 'attention') {
+      state = doAttentionTask(state, plotId);
+      showStatus('Worker completed attention task.');
+    } else if (task.type === 'harvest') {
+      const plot = state.plots.find((entry) => entry.id === plotId);
+      state = harvestPlot(state, plotId);
+      showStatus(`Worker harvested ${plot?.crop ?? 'crop'}.`);
     }
 
-    const nextState = plantCrop(state, targetPlotId, selectedSeed);
-    await applyStateUpdate(nextState, `Planted ${selectedSeed} seed.`);
+    updateHud();
+    queueStateSave();
   } catch (error) {
     showStatus(error.message);
   }
+}
+
+function updateWorker(dtMs) {
+  ensureWorkerState();
+
+  const worker = state.worker;
+  const pendingTask = state.pendingTask;
+
+  if (!worker.task && pendingTask) {
+    state = {
+      ...state,
+      pendingTask: null,
+      worker: {
+        ...worker,
+        task: pendingTask,
+        targetX: pendingTask.nodeX,
+        status: 'walking',
+      },
+    };
+  }
+
+  const activeWorker = state.worker;
+  const direction = activeWorker.targetX >= activeWorker.x ? 1 : -1;
+  const distance = Math.abs(activeWorker.targetX - activeWorker.x);
+  const step = (WORKER_SPEED_PX_PER_SEC * dtMs) / 1000;
+
+  let nextX = activeWorker.x;
+  let nextStatus = activeWorker.status;
+  let nextTaskRemainingMs = activeWorker.taskRemainingMs;
+
+  if (distance > 0.5) {
+    nextX = activeWorker.x + direction * Math.min(step, distance);
+    nextStatus = 'walking';
+  } else {
+    nextX = activeWorker.targetX;
+    if (!activeWorker.task) {
+      nextStatus = 'idle';
+    }
+  }
+
+  let completedTask = null;
+  if (activeWorker.task && Math.abs(nextX - activeWorker.targetX) <= 0.5) {
+    if (nextStatus !== 'working') {
+      nextStatus = 'working';
+      nextTaskRemainingMs = WORKER_TASK_DURATION_MS;
+    } else {
+      nextTaskRemainingMs = Math.max(0, nextTaskRemainingMs - dtMs);
+      if (nextTaskRemainingMs === 0) {
+        completedTask = activeWorker.task;
+        nextStatus = 'idle';
+      }
+    }
+  }
+
+  state = {
+    ...state,
+    worker: {
+      ...activeWorker,
+      x: nextX,
+      facing: direction,
+      status: nextStatus,
+      task: completedTask ? null : activeWorker.task,
+      taskRemainingMs: completedTask ? 0 : nextTaskRemainingMs,
+    },
+  };
+
+  if (completedTask) {
+    executeWorkerTask(completedTask);
+  }
+}
+
+async function onPlant(plotId = null) {
+  const targetPlotId = plotId ?? getFirstEmptyPlotId();
+  if (targetPlotId === null) {
+    showStatus('No empty plots right now.');
+    return;
+  }
+
+  const nodes = getTaskNodes(state.plots);
+  const node = nodes.find((entry) => entry.plotId === targetPlotId);
+
+  enqueueWorkerTask({
+    plotId: targetPlotId,
+    nodeX: node?.x ?? clampWorldX(180),
+    task: { type: 'plant', cropType: selectedSeed },
+  });
+  showStatus(`Task queued: plant ${selectedSeed}.`);
 }
 
 async function onDonate() {
@@ -173,31 +317,29 @@ async function onCanvasClick(event) {
   const x = ((event.clientX - bounds.left) / bounds.width) * canvas.width;
   const y = ((event.clientY - bounds.top) / bounds.height) * canvas.height;
 
-  const hit = getPlotHitFromPoint(x, y, state.plots, canvas.width);
-  if (!hit) {
+  const hit = getTaskHitFromPoint(x, y, state.plots, selectedSeed);
+
+  if (!hit || !hit.task) {
+    ensureWorkerState();
+    state = {
+      ...state,
+      worker: {
+        ...state.worker,
+        targetX: clampWorldX(x),
+      },
+    };
+    showStatus('Destination set for worker.');
     return;
   }
 
-  const clickedPlot = state.plots.find((plot) => plot.id === hit.plotId);
-  if (!clickedPlot) {
-    return;
-  }
+  enqueueWorkerTask({
+    plotId: hit.plotId,
+    nodeX: hit.nodeX,
+    task: hit.task,
+  });
 
-  if (clickedPlot.stage === 'empty') {
-    await onPlant(clickedPlot.id);
-    return;
-  }
-
-  if (clickedPlot.stage === 'growing' && hit.zone === 'attention' && clickedPlot.attentionType) {
-    const nextState = doAttentionTask(state, clickedPlot.id);
-    await applyStateUpdate(nextState, 'Attention task completed.');
-    return;
-  }
-
-  if (clickedPlot.stage === 'ready') {
-    const nextState = harvestPlot(state, clickedPlot.id);
-    await applyStateUpdate(nextState, `Harvested ${clickedPlot.crop}.`);
-  }
+  const taskLabel = hit.task.type === 'plant' ? `plant ${hit.task.cropType ?? selectedSeed}` : hit.task.type;
+  showStatus(`Task queued: ${taskLabel}.`);
 }
 
 async function init() {
