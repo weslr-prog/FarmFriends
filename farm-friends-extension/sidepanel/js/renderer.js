@@ -41,16 +41,16 @@ export function getPlotHitFromPoint(x, y, plots, width) {
   return null;
 }
 
-export function drawFrame(ctx, state, gameMinutes, fireflies) {
+export function drawFrame(ctx, state, gameMinutes, fireflies, nowPerf = performance.now()) {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
 
   ctx.clearRect(0, 0, width, height);
 
   drawSky(ctx, gameMinutes, width, height);
-  drawPlots(ctx, state.plots, width);
+  drawPlots(ctx, state.plots, width, nowPerf);
   drawFireflies(ctx, fireflies, gameMinutes);
-  drawUI(ctx, gameMinutes, width);
+  drawUI(ctx, gameMinutes, width, state.plots, nowPerf);
 }
 
 function drawSky(ctx, gameMinutes, width, height) {
@@ -61,8 +61,9 @@ function drawSky(ctx, gameMinutes, width, height) {
   ctx.restore();
 }
 
-function drawPlots(ctx, plots, width) {
+function drawPlots(ctx, plots, width, nowPerf) {
   const rects = getPlotRects(plots, width);
+  const pulse = (Math.sin(nowPerf * 0.01) + 1) / 2;
 
   plots.forEach((plot, index) => {
     const rect = rects[index];
@@ -76,6 +77,12 @@ function drawPlots(ctx, plots, width) {
     if (plot.stage !== 'empty') {
       ctx.fillStyle = plot.stage === 'ready' ? '#7ee081' : '#76c1ff';
       ctx.fillRect(x + 14, y + 14, PLOT_SIZE - 28, PLOT_SIZE - 28);
+
+      if (plot.stage === 'ready') {
+        ctx.strokeStyle = `rgba(168, 255, 165, ${0.4 + pulse * 0.6})`;
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(x + 10, y + 10, PLOT_SIZE - 20, PLOT_SIZE - 20);
+      }
     }
 
     if (plot.attentionType) {
@@ -108,7 +115,7 @@ function drawFireflies(ctx, fireflies, gameMinutes) {
   }
 }
 
-function drawUI(ctx, gameMinutes, width) {
+function drawUI(ctx, gameMinutes, width, plots, nowPerf) {
   const hours = Math.floor(gameMinutes / 60)
     .toString()
     .padStart(2, '0');
@@ -125,5 +132,15 @@ function drawUI(ctx, gameMinutes, width) {
 
   ctx.font = '11px Inter, sans-serif';
   ctx.fillText('Farm Friends', width - 86, 28);
+
+  const readyCount = plots.filter((plot) => plot.stage === 'ready').length;
+  if (readyCount > 0) {
+    const glow = (Math.sin(nowPerf * 0.012) + 1) / 2;
+    ctx.fillStyle = `rgba(130, 239, 143, ${0.55 + glow * 0.35})`;
+    ctx.fillRect(width - 118, 40, 108, 24);
+    ctx.fillStyle = '#102015';
+    ctx.font = '11px Inter, sans-serif';
+    ctx.fillText(`Ready: ${readyCount}`, width - 102, 56);
+  }
   ctx.restore();
 }

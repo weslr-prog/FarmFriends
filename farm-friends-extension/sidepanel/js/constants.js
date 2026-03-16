@@ -5,6 +5,8 @@ export const OFFLINE_CAP_HOURS = 2;
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const GAME_TICK_MS = 1_000;
 export const STATUS_MESSAGE_MS = 2_400;
+export const COUNTER_ANIMATION_MS = 700;
+export const MILESTONE_OVERLAY_MS = 2_200;
 
 export const CANVAS_WIDTH = 360;
 export const CANVAS_HEIGHT = 420;

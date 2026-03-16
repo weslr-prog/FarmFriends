@@ -1,10 +1,57 @@
-export function updateFoodBankUI(state) {
+import { COUNTER_ANIMATION_MS, MILESTONE_OVERLAY_MS } from './constants.js';
+
+let counterAnimationFrameId = null;
+let milestoneOverlayTimeoutId = null;
+
+export function updateFoodBankUI(state, options = {}) {
   const counter = document.getElementById('food-bank-counter');
   if (!counter) {
     return;
   }
 
-  counter.textContent = `Friends Helped: ${state.friendsHelped}`;
+  const targetValue = state.friendsHelped;
+  const animateFrom = options.animateFrom;
+
+  if (typeof animateFrom !== 'number' || animateFrom === targetValue) {
+    counter.textContent = `Friends Helped: ${targetValue}`;
+    return;
+  }
+
+  if (counterAnimationFrameId !== null) {
+    cancelAnimationFrame(counterAnimationFrameId);
+    counterAnimationFrameId = null;
+  }
+
+  const startMs = performance.now();
+  const direction = targetValue > animateFrom ? 1 : -1;
+
+  const step = () => {
+    const elapsed = performance.now() - startMs;
+    const progress = Math.min(1, elapsed / COUNTER_ANIMATION_MS);
+    const currentValue = Math.round(animateFrom + (targetValue - animateFrom) * progress);
+    counter.textContent = `Friends Helped: ${currentValue}`;
+
+    if (progress < 1) {
+      counterAnimationFrameId = requestAnimationFrame(step);
+      return;
+    }
+
+    counter.textContent = `Friends Helped: ${targetValue}`;
+    counterAnimationFrameId = null;
+
+    if (direction > 0) {
+      counter.animate(
+        [
+          { transform: 'scale(1)' },
+          { transform: 'scale(1.03)' },
+          { transform: 'scale(1)' },
+        ],
+        { duration: 280, easing: 'ease-out' }
+      );
+    }
+  };
+
+  counterAnimationFrameId = requestAnimationFrame(step);
 }
 
 export function updateInventoryUI(state) {
@@ -24,6 +71,29 @@ export function setStatusMessage(message) {
   }
 
   status.textContent = message;
+}
+
+export function showMilestoneOverlay(milestoneKey) {
+  const overlay = document.getElementById('milestone-overlay');
+  if (!overlay || !milestoneKey) {
+    return;
+  }
+
+  const count = Number.parseInt(milestoneKey.replace('friends', ''), 10);
+  const label = Number.isFinite(count) ? `${count}` : milestoneKey;
+
+  overlay.textContent = `🎉 Milestone reached: ${label} friends helped!`;
+  overlay.hidden = false;
+
+  if (milestoneOverlayTimeoutId !== null) {
+    clearTimeout(milestoneOverlayTimeoutId);
+  }
+
+  milestoneOverlayTimeoutId = setTimeout(() => {
+    overlay.hidden = true;
+    overlay.textContent = '';
+    milestoneOverlayTimeoutId = null;
+  }, MILESTONE_OVERLAY_MS);
 }
 
 export function getSelectedSeed() {

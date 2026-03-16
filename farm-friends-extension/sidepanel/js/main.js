@@ -13,6 +13,7 @@ import { initIAP } from './iap.js';
 import {
   getSelectedSeed,
   setStatusMessage,
+  showMilestoneOverlay,
   updateFoodBankUI,
   updateInventoryUI,
   wireUIHandlers,
@@ -34,8 +35,8 @@ function gameTick() {
   updateHud();
 }
 
-function updateHud() {
-  updateFoodBankUI(state);
+function updateHud(options = {}) {
+  updateFoodBankUI(state, options);
   updateInventoryUI(state);
 }
 
@@ -75,7 +76,7 @@ function renderLoop() {
 
   const gameMinutes = getGameMinutes(Date.now());
   updateFireflies(fireflies, gameMinutes, dtMs, ctx.canvas.width, ctx.canvas.height);
-  drawFrame(ctx, state, gameMinutes, fireflies);
+  drawFrame(ctx, state, gameMinutes, fireflies, nowPerf);
 
   rafId = requestAnimationFrame(renderLoop);
 }
@@ -111,8 +112,9 @@ function getFirstEmptyPlotId() {
 }
 
 async function applyStateUpdate(nextState, statusMessage) {
+  const friendsBefore = state.friendsHelped;
   state = await saveState(nextState);
-  updateHud();
+  updateHud({ animateFrom: friendsBefore });
   if (statusMessage) {
     showStatus(statusMessage);
   }
@@ -134,9 +136,22 @@ async function onPlant(plotId = null) {
 }
 
 async function onDonate() {
-  const { updatedState } = deliverProduce(state);
+  const friendsBefore = state.friendsHelped;
+  const { updatedState, friendsAdded, milestone } = deliverProduce(state);
   const donatedAnything = Object.values(state.inventory).some((value) => value > 0);
-  await applyStateUpdate(updatedState, donatedAnything ? 'Donation delivered to the food bank.' : 'Nothing to donate yet.');
+
+  state = await saveState(updatedState);
+  updateHud({ animateFrom: friendsBefore });
+
+  if (donatedAnything) {
+    showStatus(`Donation delivered. +${friendsAdded} friends helped.`);
+  } else {
+    showStatus('Nothing to donate yet.');
+  }
+
+  if (milestone) {
+    showMilestoneOverlay(milestone);
+  }
 }
 
 function onShop() {
