@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Farm Friends",
+  "description": "Idle farming game in the Chrome side panel.",
+  "version": "0.1.0",
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": ["https://extensionpay.com/*", "https://*.extensionpay.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Farm Friends"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  }
+}

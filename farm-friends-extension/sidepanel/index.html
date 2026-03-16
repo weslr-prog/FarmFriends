@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Farm Friends</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="panel-root">
+      <header class="panel-header">
+        <h1>Farm Friends</h1>
+        <p class="subtitle">Grow crops, help your neighbors.</p>
+      </header>
+
+      <section class="hud">
+        <div id="food-bank-counter" class="food-bank-counter">Friends Helped: 0</div>
+        <div class="actions-row">
+          <button id="plant-button" type="button">Plant</button>
+          <button id="donate-button" type="button">Donate</button>
+          <button id="shop-button" type="button">Shop</button>
+        </div>
+      </section>
+
+      <section class="canvas-wrap" aria-label="Farm canvas region">
+        <canvas id="farm-canvas" width="360" height="420"></canvas>
+      </section>
+
+      <section id="shop-modal-placeholder" class="shop-placeholder" aria-hidden="true">
+        Shop modal placeholder
+      </section>
+    </main>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
