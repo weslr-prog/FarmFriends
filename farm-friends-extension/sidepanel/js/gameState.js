@@ -1,4 +1,5 @@
-import { OFFLINE_CAP_HOURS, PLOT_COUNT, STORAGE_KEY } from './constants.js';
+import { GAME_TICK_MS, OFFLINE_CAP_HOURS, PLOT_COUNT, STORAGE_KEY } from './constants.js';
+import { tickFarm } from './farm.js';
 
 function createDefaultPlots() {
   return Array.from({ length: PLOT_COUNT }, (_, id) => ({
@@ -66,7 +67,13 @@ function mergeDeep(base, incoming) {
 export async function loadState() {
   const result = await chrome.storage.local.get(STORAGE_KEY);
   const savedState = result[STORAGE_KEY];
-  return mergeDeep(DEFAULT_STATE, savedState);
+  const merged = mergeDeep(DEFAULT_STATE, savedState);
+
+  if (!Array.isArray(merged.plots) || merged.plots.length !== PLOT_COUNT) {
+    merged.plots = createDefaultPlots();
+  }
+
+  return merged;
 }
 
 export async function saveState(state) {
@@ -84,8 +91,31 @@ export function calculateOfflineProgress(state, nowMs) {
   const lastSaved = state.lastSaved ?? nowMs;
   const elapsed = Math.max(0, Math.min(nowMs - lastSaved, capMs));
 
+  if (elapsed < GAME_TICK_MS) {
+    return {
+      ...state,
+      offlineElapsedMs: elapsed,
+      lastSaved: nowMs,
+    };
+  }
+
+  const fullSteps = Math.floor(elapsed / GAME_TICK_MS);
+  const remainder = elapsed % GAME_TICK_MS;
+
+  let progressedState = state;
+  let cursorMs = lastSaved;
+
+  for (let step = 0; step < fullSteps; step += 1) {
+    cursorMs += GAME_TICK_MS;
+    progressedState = tickFarm(progressedState, cursorMs);
+  }
+
+  if (remainder > 0) {
+    progressedState = tickFarm(progressedState, cursorMs + remainder);
+  }
+
   return {
-    ...state,
+    ...progressedState,
     offlineElapsedMs: elapsed,
     lastSaved: nowMs,
   };

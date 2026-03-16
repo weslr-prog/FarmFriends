@@ -4,6 +4,7 @@ import { tickFarm, plantCrop } from './farm.js';
 import { deliverProduce } from './foodbank.js';
 import { calculateOfflineProgress, loadState, saveState } from './gameState.js';
 import { drawFrame } from './renderer.js';
+import { initIAP } from './iap.js';
 import { updateFoodBankUI, wireUIHandlers } from './ui.js';
 
 let state;
@@ -91,6 +92,9 @@ async function init() {
 
   const loaded = await loadState();
   state = calculateOfflineProgress(loaded, Date.now());
+
+  await initIAP();
+
   state = await saveState(state);
 
   fireflies = createFireflies(canvas.width, canvas.height, FIREFLY_COUNT);
