@@ -24,14 +24,15 @@ Farm Friends is a Chrome Extension idle farming game that lives in the browser s
 
 The loop is designed so a player can check in every few minutes during a workday and always have something to do, but is never punished for being away.
 
-| **Step**                 | **Trigger**           | **Player Action**                         | **Idle?**                         |
-| ------------------------ | --------------------- | ----------------------------------------- | --------------------------------- |
-| 1\. Plant                | Empty plot clicked    | Select seed from inventory, click plot    | No                                |
-| 2\. Sprout               | Timer: 0-2 min        | None required                             | Yes                               |
-| 3\. Growing - Attention  | Timer: 2-5 min        | Water OR weed appears randomly (50/50)    | Yes (grows slower without action) |
-| 4\. Ready to Harvest     | Timer complete        | Click plot to harvest                     | No                                |
-| 5\. Deliver to Food Bank | Inventory has produce | Click 'Donate' button                     | No                                |
-| 6\. Friends Helped +1    | Delivery confirmed    | Counter increments, celebration animation | Auto                              |
+| **Step**                  | **Trigger**                  | **Player Action**                         | **Idle?**                         |
+| ------------------------- | ---------------------------- | ----------------------------------------- | --------------------------------- |
+| 1\. Plant                 | Empty plot clicked           | Select seed from inventory, click plot    | No                                |
+| 2\. Sprout                | Timer: 0-2 min               | None required                             | Yes                               |
+| 3\. Growing - Attention   | Timer: 2-5 min               | Water OR weed appears randomly (50/50)    | Yes (grows slower without action) |
+| 4\. Ready to Harvest      | Timer complete               | Click plot to harvest                     | No                                |
+| 5\. Stock Vegetable Stand | Harvest adds produce         | Produce appears at stand on right side    | Auto                              |
+| 6\. Community Pickup      | Customer visit timer         | NPC customer takes produce from stand     | Yes                               |
+| 7\. Friends Helped +1     | Pickup or donation confirmed | Counter increments, celebration animation | Auto                              |
 
 ### **Missed Action Penalty (Gentle)**
 
@@ -115,6 +116,15 @@ Build strictly in this order. Do not jump ahead. Each phase produces a testable 
 | 3.2      | renderer.js | Replace rectangles with sprite rendering once assets exist. Add stage-based sprite selection.            | Crops show correct sprite per growth stage       |
 | 3.3      | renderer.js | drawUI overlay: water/weed prompt icons floating above plots needing attention                           | Attention icons appear at correct plot positions |
 | 3.4      | main.js     | Wire requestAnimationFrame loop calling renderer.drawFrame()                                             | Canvas animates at 60fps                         |
+
+## **Phase 3.5 - Side-Scroller Stand Layout (Redesign Integration)**
+
+| **Step** | **File(s)**              | **What to Build**                                                                               | **Test Checkpoint**                                           |
+| -------- | ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 3.5.1    | constants.js, index.html | Keep canvas width fixed and increase height by ~2/3 for side-scroller framing                   | Canvas remains same width, taller play area renders correctly |
+| 3.5.2    | renderer.js              | Draw dirt road along bottom and vegetable stand at right edge                                   | Road/stand are always visible in scene                        |
+| 3.5.3    | renderer.js, main.js     | Show harvested produce at stand and periodically spawn customer pickup behavior                 | Stand inventory decreases on timed customer visits            |
+| 3.5.4    | ui.js, foodbank.js       | Keep manual Donate flow as optional override while auto-customer flow increments Friends Helped | Both auto pickups and donate button update counter correctly  |
 
 ## **Phase 4 - Day/Night Cycle & Fireflies**
 
@@ -222,12 +232,12 @@ version: 1 // Increment for migration handling
 
 One full in-game day = 30 real-world minutes (set by GAME_DAY_MINUTES in constants.js). This means during an 8-hour workday shift, the player sees approximately 16 full day/night cycles.
 
-| **Game Time** | **Phase** | **Sky Colors**     | **Special Effects**                       |
-| ------------- | --------- | ------------------ | ----------------------------------------- |
-| 5:00 - 7:00   | Dawn      | #1a1a2e to #e8b89a | Soft orange gradient, no fireflies        |
-| 7:00 - 17:00  | Day       | #87CEEB to #c8e6c9 | Bright sky, birds (optional sprite)       |
-| 17:00 - 20:00 | Dusk      | #ff6b35 to #c2185b | Orange-purple gradient, fireflies fade in |
-| 20:00 - 5:00  | Night     | #0d0d1a to #1a237e | Dark sky, fireflies active, stars         |
+| **Game Time** | **Phase** | **Sky Colors**     | **Special Effects**                  |
+| ------------- | --------- | ------------------ | ------------------------------------ |
+| 5:00 - 7:00   | Dawn      | #1a1a2e to #e8b89a | Soft orange gradient, no fireflies   |
+| 7:00 - 17:00  | Day       | #87CEEB to #c8e6c9 | Bright sky, birds (optional sprite)  |
+| 17:00 - 20:00 | Dusk      | #ff6b35 to #c2185b | Orange-purple gradient, no fireflies |
+| 20:00 - 5:00  | Night     | #0d0d1a to #1a237e | Dark sky, fireflies active, stars    |
 
 ### **Firefly Particle Spec**
 
@@ -236,7 +246,7 @@ One full in-game day = 30 real-world minutes (set by GAME_DAY_MINUTES in constan
 - Movement: gentle random drift, wrap at canvas edges
 - Glow: ctx.shadowBlur = glowRadius, ctx.shadowColor = '#ffffaa'
 - Blink: opacity oscillates using Math.sin(blinkTimer), each firefly has unique phase offset
-- Fade in: fireflies transition opacity 0 to active over 2 real-world minutes at dusk
+- Fireflies are visible only during the Night phase
 
 # **7\. Crop Types (v1)**
 

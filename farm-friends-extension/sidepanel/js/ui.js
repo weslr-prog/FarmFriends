@@ -61,7 +61,7 @@ export function updateInventoryUI(state) {
   }
 
   const { carrot, tomato, sunflower } = state.inventory;
-  inventory.textContent = `Inventory: carrot ${carrot} · tomato ${tomato} · sunflower ${sunflower} · coins ${state.coins}`;
+  inventory.textContent = `Stand: carrot ${carrot} · tomato ${tomato} · sunflower ${sunflower} · coins ${state.coins}`;
 }
 
 export function setStatusMessage(message) {

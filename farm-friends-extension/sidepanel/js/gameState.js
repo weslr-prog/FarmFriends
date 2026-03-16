@@ -49,6 +49,7 @@ export const DEFAULT_STATE = {
     x: WORKER_START_X,
     y: WORKER_Y,
     targetX: WORKER_START_X,
+    targetY: WORKER_Y,
     facing: 1,
     status: 'idle',
     task: null,

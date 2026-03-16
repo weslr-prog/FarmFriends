@@ -51,7 +51,7 @@ export function createFireflies(width, height, count = FIREFLY_COUNT) {
 
 export function updateFireflies(particles, gameMinutes, dtMs, width, height) {
   const phase = getPhase(gameMinutes);
-  const active = phase === 'night' || phase === 'dusk';
+  const active = phase === 'night';
 
   for (const particle of particles) {
     particle.x = (particle.x + particle.driftX * dtMs * 0.05 + width) % width;

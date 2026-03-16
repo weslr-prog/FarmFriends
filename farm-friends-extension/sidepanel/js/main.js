@@ -1,5 +1,11 @@
 import {
   AUTOSAVE_INTERVAL_MS,
+  CROP_CONFIG,
+  CUSTOMER_INTERVAL_MAX_MS,
+  CUSTOMER_INTERVAL_MIN_MS,
+  CUSTOMER_MAX_ITEMS,
+  CUSTOMER_MIN_ITEMS,
+  CUSTOMER_STOP_MS,
   FIREFLY_COUNT,
   GAME_TICK_MS,
   STATUS_MESSAGE_MS,
@@ -10,7 +16,7 @@ import { getGameMinutes, updateFireflies, createFireflies } from './daynight.js'
 import { doAttentionTask, harvestPlot, plantCrop, tickFarm } from './farm.js';
 import { deliverProduce } from './foodbank.js';
 import { calculateOfflineProgress, loadState, saveState } from './gameState.js';
-import { clampWorldX, drawFrame, getTaskHitFromPoint, getTaskNodes } from './renderer.js';
+import { clampWorldX, drawFrame, getTaskHitFromPoint } from './renderer.js';
 import { initIAP } from './iap.js';
 import {
   getSelectedSeed,
@@ -31,10 +37,98 @@ let previousRenderMs = performance.now();
 let selectedSeed = 'carrot';
 let statusTimeoutId = null;
 let saveChain = Promise.resolve();
+let activeCustomer = null;
+let nextCustomerAt = 0;
+let awaitingPlantTarget = false;
+
+function randomBetween(minValue, maxValue) {
+  return Math.floor(minValue + Math.random() * (maxValue - minValue + 1));
+}
+
+function scheduleNextCustomer(fromMs = Date.now()) {
+  nextCustomerAt = fromMs + randomBetween(CUSTOMER_INTERVAL_MIN_MS, CUSTOMER_INTERVAL_MAX_MS);
+}
+
+function getTotalProduceInStand() {
+  return Object.values(state.inventory).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+}
+
+function takeProduceFromStand(maxItemsToTake) {
+  const cropOrder = ['carrot', 'tomato', 'sunflower'];
+  const nextInventory = { ...state.inventory };
+  const taken = { carrot: 0, tomato: 0, sunflower: 0 };
+
+  let remaining = maxItemsToTake;
+  let friendsAdded = 0;
+
+  for (const crop of cropOrder) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const available = nextInventory[crop] ?? 0;
+    if (available <= 0) {
+      continue;
+    }
+
+    const amount = Math.min(available, remaining);
+    nextInventory[crop] = available - amount;
+    taken[crop] = amount;
+    remaining -= amount;
+    friendsAdded += amount * (CROP_CONFIG[crop]?.friends ?? 0);
+  }
+
+  return {
+    nextInventory,
+    taken,
+    friendsAdded,
+    itemsTaken: maxItemsToTake - remaining,
+  };
+}
+
+function processStandCustomers(nowMs) {
+  const standTotal = getTotalProduceInStand();
+
+  if (activeCustomer) {
+    if (nowMs < activeCustomer.departAt) {
+      return;
+    }
+
+    const desiredAmount = randomBetween(CUSTOMER_MIN_ITEMS, CUSTOMER_MAX_ITEMS);
+    const { nextInventory, friendsAdded, itemsTaken } = takeProduceFromStand(Math.min(desiredAmount, standTotal));
+
+    if (itemsTaken > 0) {
+      const friendsBefore = state.friendsHelped;
+      state = {
+        ...state,
+        inventory: nextInventory,
+        friendsHelped: state.friendsHelped + friendsAdded,
+        totalDeliveries: state.totalDeliveries + 1,
+      };
+      updateHud({ animateFrom: friendsBefore });
+      queueStateSave();
+      showStatus(`Customer picked up ${itemsTaken} produce from the stand.`);
+    }
+
+    activeCustomer = null;
+    scheduleNextCustomer(nowMs);
+    return;
+  }
+
+  if (standTotal <= 0 || nowMs < nextCustomerAt) {
+    return;
+  }
+
+  activeCustomer = {
+    departAt: nowMs + CUSTOMER_STOP_MS,
+  };
+  showStatus('A customer arrived at the stand.');
+}
 
 function gameTick() {
   const now = Date.now();
   state = tickFarm(state, now);
+  processStandCustomers(now);
   updateHud();
 }
 
@@ -81,7 +175,10 @@ function renderLoop() {
 
   const gameMinutes = getGameMinutes(Date.now());
   updateFireflies(fireflies, gameMinutes, dtMs, ctx.canvas.width, ctx.canvas.height);
-  drawFrame(ctx, state, gameMinutes, fireflies, nowPerf);
+  drawFrame(ctx, state, gameMinutes, fireflies, nowPerf, {
+    customerActive: Boolean(activeCustomer),
+    customerPulse: nowPerf,
+  });
 
   rafId = requestAnimationFrame(renderLoop);
 }
@@ -111,11 +208,6 @@ function handleVisibility() {
   resumeRender();
 }
 
-function getFirstEmptyPlotId() {
-  const emptyPlot = state.plots.find((plot) => plot.stage === 'empty');
-  return emptyPlot ? emptyPlot.id : null;
-}
-
 async function applyStateUpdate(nextState, statusMessage) {
   const friendsBefore = state.friendsHelped;
   state = await saveState(nextState);
@@ -142,6 +234,17 @@ function queueStateSave() {
 
 function ensureWorkerState() {
   if (state.worker) {
+    if (typeof state.worker.targetY === 'number') {
+      return;
+    }
+
+    state = {
+      ...state,
+      worker: {
+        ...state.worker,
+        targetY: state.worker.y,
+      },
+    };
     return;
   }
 
@@ -149,8 +252,9 @@ function ensureWorkerState() {
     ...state,
     worker: {
       x: 42,
-      y: 162,
+      y: 300,
       targetX: 42,
+      targetY: 300,
       facing: 1,
       status: 'idle',
       task: null,
@@ -206,32 +310,40 @@ function updateWorker(dtMs) {
         ...worker,
         task: pendingTask,
         targetX: pendingTask.nodeX,
+        targetY: pendingTask.nodeY ?? worker.y,
         status: 'walking',
       },
     };
   }
 
   const activeWorker = state.worker;
-  const direction = activeWorker.targetX >= activeWorker.x ? 1 : -1;
-  const distance = Math.abs(activeWorker.targetX - activeWorker.x);
+  const deltaX = activeWorker.targetX - activeWorker.x;
+  const deltaY = activeWorker.targetY - activeWorker.y;
+  const direction = deltaX >= 0 ? 1 : -1;
+  const distance = Math.hypot(deltaX, deltaY);
   const step = (WORKER_SPEED_PX_PER_SEC * dtMs) / 1000;
 
   let nextX = activeWorker.x;
+  let nextY = activeWorker.y;
   let nextStatus = activeWorker.status;
   let nextTaskRemainingMs = activeWorker.taskRemainingMs;
 
   if (distance > 0.5) {
-    nextX = activeWorker.x + direction * Math.min(step, distance);
+    const move = Math.min(step, distance);
+    const ratio = move / distance;
+    nextX = activeWorker.x + deltaX * ratio;
+    nextY = activeWorker.y + deltaY * ratio;
     nextStatus = 'walking';
   } else {
     nextX = activeWorker.targetX;
+    nextY = activeWorker.targetY;
     if (!activeWorker.task) {
       nextStatus = 'idle';
     }
   }
 
   let completedTask = null;
-  if (activeWorker.task && Math.abs(nextX - activeWorker.targetX) <= 0.5) {
+  if (activeWorker.task && Math.hypot(nextX - activeWorker.targetX, nextY - activeWorker.targetY) <= 0.5) {
     if (nextStatus !== 'working') {
       nextStatus = 'working';
       nextTaskRemainingMs = WORKER_TASK_DURATION_MS;
@@ -249,6 +361,7 @@ function updateWorker(dtMs) {
     worker: {
       ...activeWorker,
       x: nextX,
+      y: nextY,
       facing: direction,
       status: nextStatus,
       task: completedTask ? null : activeWorker.task,
@@ -261,22 +374,16 @@ function updateWorker(dtMs) {
   }
 }
 
-async function onPlant(plotId = null) {
-  const targetPlotId = plotId ?? getFirstEmptyPlotId();
-  if (targetPlotId === null) {
+async function onPlant() {
+  const hasEmptyPlot = state.plots.some((plot) => plot.stage === 'empty');
+  if (!hasEmptyPlot) {
+    awaitingPlantTarget = false;
     showStatus('No empty plots right now.');
     return;
   }
 
-  const nodes = getTaskNodes(state.plots);
-  const node = nodes.find((entry) => entry.plotId === targetPlotId);
-
-  enqueueWorkerTask({
-    plotId: targetPlotId,
-    nodeX: node?.x ?? clampWorldX(180),
-    task: { type: 'plant', cropType: selectedSeed },
-  });
-  showStatus(`Task queued: plant ${selectedSeed}.`);
+  awaitingPlantTarget = true;
+  showStatus(`Plant mode active: click an empty plot for ${selectedSeed}.`);
 }
 
 async function onDonate() {
@@ -326,15 +433,26 @@ async function onCanvasClick(event) {
       worker: {
         ...state.worker,
         targetX: clampWorldX(x),
+        targetY: state.worker.y,
       },
     };
     showStatus('Destination set for worker.');
     return;
   }
 
+  if (hit.task.type === 'plant' && !awaitingPlantTarget) {
+    showStatus('Press Plant, then click an empty plot.');
+    return;
+  }
+
+  if (hit.task.type === 'plant') {
+    awaitingPlantTarget = false;
+  }
+
   enqueueWorkerTask({
     plotId: hit.plotId,
     nodeX: hit.nodeX,
+    nodeY: hit.nodeY,
     task: hit.task,
   });
 
@@ -361,6 +479,7 @@ async function init() {
   state = await saveState(state);
 
   fireflies = createFireflies(canvas.width, canvas.height, FIREFLY_COUNT);
+  scheduleNextCustomer(Date.now());
 
   selectedSeed = getSelectedSeed();
 

@@ -18,6 +18,15 @@ You are helping build Farm Friends, a Chrome Extension idle farming game. The ex
 | Module pattern   | Plain ES modules (type=module in HTML) - no bundler, no npm          |
 | Game clock       | 1 in-game day = 30 real minutes - constant in constants.js           |
 
+## **Current Scene Layout Target (Active Redesign)**
+
+- Keep canvas width unchanged; increase canvas height by roughly 2/3 for vertical scene depth
+- Reserve bottom lane for a left-to-right dirt road
+- Place vegetable stand on the right side above the road
+- Harvested produce should be visually represented at the stand
+- Customers should periodically appear, take produce, and increment community-help progress
+- Fireflies should render only during the night phase (not dawn/day/dusk)
+
 # **Rules: ALWAYS Do This**
 
 ## **Architecture**

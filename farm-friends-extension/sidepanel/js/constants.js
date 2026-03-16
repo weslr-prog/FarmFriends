@@ -9,18 +9,41 @@ export const COUNTER_ANIMATION_MS = 700;
 export const MILESTONE_OVERLAY_MS = 2_200;
 
 export const CANVAS_WIDTH = 360;
-export const CANVAS_HEIGHT = 240;
+export const CANVAS_HEIGHT = 400;
 export const PLOT_COLUMNS = 3;
+export const PLOT_ROWS = 2;
 export const PLOT_SIZE = 90;
 export const PLOT_GAP = 12;
 export const PLOT_START_Y = 120;
 export const TASK_NODE_RADIUS = 14;
 export const TASK_NODE_START_X = 42;
 export const TASK_NODE_END_X = 318;
-export const TASK_NODE_Y = 178;
+export const TASK_NODE_TOP_Y = 190;
+export const TASK_NODE_ROW_GAP = 64;
+
+export const ROAD_TOP_Y = 300;
+export const ROAD_HEIGHT = 42;
+export const STAND_X = 252;
+export const STAND_Y = 324;
+export const STAND_WIDTH = 98;
+export const STAND_HEIGHT = 72;
+
+export const SUN_X = 52;
+export const SUN_Y = 54;
+export const SUN_RADIUS = 24;
+export const CLOUD_COUNT = 3;
+export const CLOUD_MIN_Y = 34;
+export const CLOUD_MAX_Y = 110;
+export const GRASS_TOP_RATIO = 0.34;
+
+export const CUSTOMER_INTERVAL_MIN_MS = 16_000;
+export const CUSTOMER_INTERVAL_MAX_MS = 30_000;
+export const CUSTOMER_STOP_MS = 3_000;
+export const CUSTOMER_MIN_ITEMS = 1;
+export const CUSTOMER_MAX_ITEMS = 3;
 
 export const WORKER_START_X = 42;
-export const WORKER_Y = 162;
+export const WORKER_Y = 300;
 export const WORKER_SPEED_PX_PER_SEC = 86;
 export const WORKER_TASK_DURATION_MS = 900;
 
