@@ -5,8 +5,8 @@ Chrome Side Panel idle farming extension (Manifest V3) with crop growth, food ba
 ## Status
 
 - Phase 1 scaffold complete (manifest, side panel shell, styling, service worker).
-- Phase 2 in progress and functional (state model, storage, farm tick loop, offline progression simulation).
-- Placeholder rendering and interaction are available for rapid validation before deeper feature work.
+- Phase 2 functional (state model, storage, farm tick loop, offline progression simulation).
+- Phase 3 visual/gameplay prototype active with side-scroller scene layout and task-node interactions.
 
 ## Project Structure
 
@@ -28,8 +28,14 @@ Chrome Side Panel idle farming extension (Manifest V3) with crop growth, food ba
 - Persistent state in chrome.storage.local
 - 6 plot state model with stage transitions
 - Game tick loop (1 second) and render loop (requestAnimationFrame) separated
-- Day/night gradient cycle and firefly rendering
-- Plant (basic) and donate actions wired to state changes
+- Day/night gradient cycle with fireflies at night only
+- 2x3 crop task grid with click-to-assign interactions
+- Worker movement to assigned nodes with 2D travel (horizontal + vertical)
+- Plant mode flow (press Plant, then click target empty plot)
+- Bottom-road scene with larger produce stand on right (slight road overlap)
+- Harvested produce visible at stand inventory slots
+- Timed customer pickups that remove produce and increment community impact
+- Manual Donate action remains available
 - Auto-save every 30 seconds and save-on-action
 - Offline progression replay (capped at 2 hours)
 
@@ -38,9 +44,13 @@ Chrome Side Panel idle farming extension (Manifest V3) with crop growth, food ba
 - Extension loads without console errors
 - Side panel opens from extension action
 - Plot states progress through sprouting/growing/ready
+- Worker reaches both grid rows when assigned crop tasks
+- Plant mode requires explicit target node click
 - Missed attention tasks recycle crop attention requirements (no crop death)
-- Inventory donation increments friendsHelped and clears inventory
+- Stand inventory updates after harvest and decreases on customer pickup
+- Donation increments friendsHelped and clears stand inventory
 - State persists across side panel close/reopen
+- Fireflies appear only during night phase
 
 ## Design Notes
 
@@ -51,6 +61,6 @@ Chrome Side Panel idle farming extension (Manifest V3) with crop growth, food ba
 
 ## Next Build Targets
 
-- Phase 2 polish: richer plot interactions and tighter HUD state feedback
-- Phase 3: sprite-based rendering, attention prompt visuals, and cleaner per-plot input UX
-- Phase 5/6: milestone overlays, shop flow, and production-ready ExtensionPay wiring
+- Phase 3 polish: sprite upgrades for crops, stand, worker, and customer characters
+- Phase 4 polish: refine weather/sky ambience and cloud variation
+- Phase 5/6: milestone UX expansion, shop flow, and production-ready ExtensionPay wiring
