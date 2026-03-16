@@ -4,6 +4,19 @@ export const FIREFLY_COUNT = 15;
 export const OFFLINE_CAP_HOURS = 2;
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const GAME_TICK_MS = 1_000;
+export const STATUS_MESSAGE_MS = 2_400;
+
+export const CANVAS_WIDTH = 360;
+export const CANVAS_HEIGHT = 420;
+export const PLOT_COLUMNS = 3;
+export const PLOT_SIZE = 90;
+export const PLOT_GAP = 12;
+export const PLOT_START_Y = 120;
+
+export const SPROUT_STAGE_RATIO = 0.4;
+export const GROW_STAGE_RATIO = 0.6;
+export const FERTILIZER_SPEED_MULTIPLIER = 0.7;
+export const ATTENTION_RETRY_DELAY_MS = 30_000;
 
 export const CROP_CONFIG = {
   carrot: {

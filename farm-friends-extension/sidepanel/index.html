@@ -15,11 +15,21 @@
 
       <section class="hud">
         <div id="food-bank-counter" class="food-bank-counter">Friends Helped: 0</div>
+        <div class="seed-row">
+          <label for="seed-select">Seed</label>
+          <select id="seed-select" aria-label="Select seed type">
+            <option value="carrot">Carrot</option>
+            <option value="tomato">Tomato</option>
+            <option value="sunflower">Sunflower</option>
+          </select>
+        </div>
+        <div id="inventory-strip" class="inventory-strip">Inventory: carrot 0 · tomato 0 · sunflower 0 · coins 0</div>
         <div class="actions-row">
           <button id="plant-button" type="button">Plant</button>
           <button id="donate-button" type="button">Donate</button>
           <button id="shop-button" type="button">Shop</button>
         </div>
+        <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
       </section>
 
       <section class="canvas-wrap" aria-label="Farm canvas region">

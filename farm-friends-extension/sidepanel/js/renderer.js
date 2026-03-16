@@ -1,4 +1,45 @@
 import { getSkyGradient, getPhase } from './daynight.js';
+import { PLOT_COLUMNS, PLOT_GAP, PLOT_SIZE, PLOT_START_Y } from './constants.js';
+
+function getPlotLayout(width) {
+  const startX = (width - PLOT_COLUMNS * PLOT_SIZE - (PLOT_COLUMNS - 1) * PLOT_GAP) / 2;
+  return { startX };
+}
+
+export function getPlotRects(plots, width) {
+  const { startX } = getPlotLayout(width);
+
+  return plots.map((plot, index) => {
+    const col = index % PLOT_COLUMNS;
+    const row = Math.floor(index / PLOT_COLUMNS);
+    const x = startX + col * (PLOT_SIZE + PLOT_GAP);
+    const y = PLOT_START_Y + row * (PLOT_SIZE + PLOT_GAP);
+
+    return { plotId: plot.id, x, y, size: PLOT_SIZE };
+  });
+}
+
+export function getPlotHitFromPoint(x, y, plots, width) {
+  const rects = getPlotRects(plots, width);
+
+  for (const rect of rects) {
+    const inBounds = x >= rect.x && x <= rect.x + rect.size && y >= rect.y && y <= rect.y + rect.size;
+    if (!inBounds) {
+      continue;
+    }
+
+    const attentionDx = x - (rect.x + rect.size - 12);
+    const attentionDy = y - (rect.y + 12);
+    const onAttentionBubble = attentionDx * attentionDx + attentionDy * attentionDy <= 8 * 8;
+
+    return {
+      plotId: rect.plotId,
+      zone: onAttentionBubble ? 'attention' : 'plot',
+    };
+  }
+
+  return null;
+}
 
 export function drawFrame(ctx, state, gameMinutes, fireflies) {
   const width = ctx.canvas.width;
@@ -21,31 +62,26 @@ function drawSky(ctx, gameMinutes, width, height) {
 }
 
 function drawPlots(ctx, plots, width) {
-  const columns = 3;
-  const plotSize = 90;
-  const gap = 12;
-  const startX = (width - columns * plotSize - (columns - 1) * gap) / 2;
-  const startY = 120;
+  const rects = getPlotRects(plots, width);
 
   plots.forEach((plot, index) => {
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const x = startX + col * (plotSize + gap);
-    const y = startY + row * (plotSize + gap);
+    const rect = rects[index];
+    const x = rect.x;
+    const y = rect.y;
 
     ctx.save();
     ctx.fillStyle = '#6e5432';
-    ctx.fillRect(x, y, plotSize, plotSize);
+    ctx.fillRect(x, y, PLOT_SIZE, PLOT_SIZE);
 
     if (plot.stage !== 'empty') {
       ctx.fillStyle = plot.stage === 'ready' ? '#7ee081' : '#76c1ff';
-      ctx.fillRect(x + 14, y + 14, plotSize - 28, plotSize - 28);
+      ctx.fillRect(x + 14, y + 14, PLOT_SIZE - 28, PLOT_SIZE - 28);
     }
 
     if (plot.attentionType) {
       ctx.fillStyle = '#ffef86';
       ctx.beginPath();
-      ctx.arc(x + plotSize - 12, y + 12, 8, 0, Math.PI * 2);
+      ctx.arc(x + PLOT_SIZE - 12, y + 12, 8, 0, Math.PI * 2);
       ctx.fill();
     }
 

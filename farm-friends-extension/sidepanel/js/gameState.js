@@ -10,6 +10,7 @@ function createDefaultPlots() {
     stageStartedAt: null,
     attentionType: null,
     attentionExpiresAt: null,
+    attentionRetryAt: null,
     fertilized: false,
   }));
 }

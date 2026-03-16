@@ -1,7 +1,10 @@
-import { CROP_CONFIG } from './constants.js';
-
-const SPROUT_STAGE_RATIO = 0.4;
-const GROW_STAGE_RATIO = 0.6;
+import {
+  ATTENTION_RETRY_DELAY_MS,
+  CROP_CONFIG,
+  FERTILIZER_SPEED_MULTIPLIER,
+  GROW_STAGE_RATIO,
+  SPROUT_STAGE_RATIO,
+} from './constants.js';
 
 function getAdjustedGrowMs(plot, state) {
   const cropConfig = CROP_CONFIG[plot.crop];
@@ -9,7 +12,7 @@ function getAdjustedGrowMs(plot, state) {
     return null;
   }
 
-  const speedMultiplier = state.premium.fertilizer || plot.fertilized ? 0.7 : 1;
+  const speedMultiplier = state.premium.fertilizer || plot.fertilized ? FERTILIZER_SPEED_MULTIPLIER : 1;
   return cropConfig.growMs * speedMultiplier;
 }
 
@@ -20,6 +23,7 @@ export function triggerAttentionTask(plot, nowMs, attentionWindowMs) {
     stageStartedAt: nowMs,
     attentionType: Math.random() < 0.5 ? 'water' : 'weed',
     attentionExpiresAt: nowMs + attentionWindowMs,
+    attentionRetryAt: null,
   };
 }
 
@@ -32,6 +36,7 @@ export function startGrowth(plot, cropType, nowMs) {
     stageStartedAt: nowMs,
     attentionType: null,
     attentionExpiresAt: null,
+    attentionRetryAt: null,
     fertilized: false,
   };
 }
@@ -62,6 +67,15 @@ export function tickFarm(state, nowMs) {
 
     if (plot.stage === 'growing') {
       if (plot.attentionType && plot.attentionExpiresAt && nowMs > plot.attentionExpiresAt) {
+        return {
+          ...plot,
+          attentionType: null,
+          attentionExpiresAt: null,
+          attentionRetryAt: nowMs + ATTENTION_RETRY_DELAY_MS,
+        };
+      }
+
+      if (!plot.attentionType && plot.attentionRetryAt && nowMs >= plot.attentionRetryAt) {
         return triggerAttentionTask(plot, nowMs, cropConfig.attentionWindowMs);
       }
 
@@ -132,6 +146,7 @@ export function doAttentionTask(state, plotId) {
       ...plot,
       attentionType: null,
       attentionExpiresAt: null,
+      attentionRetryAt: null,
       stageStartedAt: nowMs,
     };
   });
@@ -160,6 +175,7 @@ export function harvestPlot(state, plotId) {
       stageStartedAt: null,
       attentionType: null,
       attentionExpiresAt: null,
+      attentionRetryAt: null,
       fertilized: false,
     };
   });
